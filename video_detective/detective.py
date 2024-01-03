@@ -26,7 +26,7 @@ class DetectiveSrv():
     def __init__(self,file_path=None,rtmp_url=None,interval=1000,has_part=False,polygon:list=[]):
         self.file_path = file_path
         # 初始化YOLOv5模型
-        self.model = torch.hub.load("ultralytics/yolov5", "yolov5s")  # or yolov5n - yolov5x6, custom
+        self.model = torch.hub.load(util.ConfigSingleton().yolo['repo_or_dir'], util.ConfigSingleton().yolo['model'])  # or yolov5n - yolov5x6, custom
         print("类别列表",self.model.names)
         self.classnames = self.model.names
         if file_path is not None:
@@ -82,6 +82,7 @@ class DetectiveSrv():
                     vertices = np.array(self.polygon, np.int32)
                     vertices = vertices.reshape((-1, 1, 2))
                     cv2.polylines(frame, [vertices], isClosed=True, color=(0, 255, 0), thickness=2)
+
         # 显示带有检测框的帧
         cv2.imshow('Frame', frame)
 
@@ -102,7 +103,11 @@ class DetectiveSrv():
 
 
 if __name__ == "__main__":
-    ds = DetectiveSrv(file_path='../source/small_road.mp4',interval=5000,has_part=True,polygon=[(100, 100), (200, 50), (700, 400), (450, 400)])
+    # 计算合理的暂停时间
+    # wait_time = int(1 / fps * 1000)
+
+    print("fps:",util.get_fps('../source/small_road.mp4'))
+    ds = DetectiveSrv(file_path='../source/small_road.mp4',interval=util.ConfigSingleton().yolo["refresh_time_ms"],has_part=True,polygon=[(100, 100), (200, 50), (700, 400), (450, 400)])
     ds.detect_person()
 
 # cv2.destroyAllWindows()

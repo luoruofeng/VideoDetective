@@ -1,0 +1,28 @@
+detectives:
+  - id: 1
+    polygon_coordinates: [(100, 100), (200, 50), (2500, 100), (2150, 200), (2200, 2200)]
+    rtmp:
+      pull_stream: https://cn-sccd-ct-01-04.bilivideo.com/live-bvc/195674/live_3461572997417576_27045827_1500/index.m3u8
+      push_stream: http://localhost:8080/live/livestream.flv
+    monitoring_topics:
+      - person
+      - fire
+  - id: 2
+    rtmp:
+      pull_stream: rtmp://localhost/live/livestream2
+      push_stream: http://localhost:8080/live/livestream2.flv
+    monitoring_topics:
+      - person
+      - fire
+      - smoke
+
+yolo:
+  refresh_time_ms: 40  # YOLO模型的刷新时间，单位为毫秒
+  model: yolov5m #模型名
+  repo_or_dir: ultralytics/yolov5 #模型路径/库
+
+pull_rtmp: 
+  long_wait_retry_seconds: 60 #最长rtmp重试时间
+  short_wait_retry_seconds: 1 #最短rtmp重试时间
+  number_of_retry_short2long: 3 #最短到最长的切换次数
+  daemon: False #拉流是否守护子线程

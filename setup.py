@@ -33,7 +33,7 @@ setup(
                 )],
     entry_points={
         'console_scripts': [
-            'vd = video_detective.cmd:video_detective_launch',
+            'vd-web = video_detective.cmd:video_detective_launch',
         ],
     },
 )

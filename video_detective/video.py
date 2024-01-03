@@ -1,6 +1,7 @@
 import cv2
 import time
 import threading
+import util
 
 class VideoSrv:
     def __init__(self, file_path:str,callback_interval =1000):
@@ -32,10 +33,10 @@ class VideoSrv:
                 if frame_callback is not None:
                     current_time = time.time()
                     if current_time - self.last_callback_time >= self.callback_interval / 1000:
+                        print(util.format_time(current_time))
                         frame_callback(ret, frame)
                         self.last_callback_time = current_time
-
-                if cv2.waitKey(1000) & 0xFF == ord('q'):
+                if cv2.waitKey(util.ConfigSingleton().yolo['refresh_time_ms']) & 0xFF == ord('q'):
                     self.stop()  # 调用 stop 方法停止播放
                     break
 
