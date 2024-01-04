@@ -32,6 +32,17 @@ class ConfigSingleton:
                 return True
         return False
         
+
+    def get_index_by_id(self,id:str)->int:
+        index = 0
+        for det in self.detectives:
+            print(det)
+            if det["id"] == id:
+                return index
+            index += 1
+        return None
+
+    
     def reload(self, config_path='../config/config.yaml'):
         with self._lock:
             # 清除当前配置
@@ -89,3 +100,13 @@ def get_fps(video_path):
     # 释放视频对象
     cap.release()
     return fps
+
+
+
+# 使用例子
+# safe_dict = SafeDict({'a': 1, 'b': 2})
+# print(safe_dict['a'])  # 输出: 1
+# print(safe_dict['c'])  # 输出: None
+class SafeDict(dict):
+    def __getitem__(self, key):
+        return self.get(key, None)

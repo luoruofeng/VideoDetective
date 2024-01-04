@@ -1,12 +1,21 @@
 from flask import Flask, render_template
 import threading
 import util
-from rtmp import RTMPPuller
+from rtmp import RTMPSrv
 from argparse import ArgumentParser
 import signal
 import sys
+from detective import DetectiveSrv
+import detective
+import torch
 
 DEFAULT_CONFIG_PATH = '../config/config.yaml'
+MODEL = None
+
+def init_model():
+    global MODEL  
+    MODEL = torch.hub.load(util.ConfigSingleton().yolo['repo_or_dir'], util.ConfigSingleton().yolo['model'])  # or yolov5n - yolov5x6, custom
+    print(f"初始化模型:{util.ConfigSingleton().yolo['repo_or_dir']}-{util.ConfigSingleton().yolo['model']}  类别列表:{MODEL.names}")
 
 def _get_args():
     parser = ArgumentParser()
@@ -38,10 +47,18 @@ def rtmp_worker(id, stream_url):
     long_wait_retry_seconds = util.ConfigSingleton().pull_rtmp['long_wait_retry_seconds']
     retries = 0
     try:
-        puller = RTMPPuller(stream_url, id, SHUT_DOWN_EVENT)
+        # 常规拉流
+        # puller = RTMPPuller(stream_url, id, SHUT_DOWN_EVENT)
+
+        dindex = util.ConfigSingleton().get_index_by_id(id)
+        polygon=detective.get_polygon_coordinates(dindex)
+        play_srv = RTMPSrv(stream_url,stop_event=SHUT_DOWN_EVENT,id=id)
+        ds = DetectiveSrv(play_srv=play_srv,id=id, model=MODEL, polygon=polygon)
         while not SHUT_DOWN_EVENT.is_set():
             try:
-                puller.start()
+                # 常规拉流
+                # puller.start()
+                ds.detect_person()
             except Exception as e:
                 print(f"拉流失败 id:{id} Exception occurred: {e}")
                 if not util.ConfigSingleton().contain_pull_rtmp(stream_url):
@@ -64,7 +81,7 @@ def start_rtmp_workers():
     for i in range(len(util.ConfigSingleton().detectives)):
         det = util.ConfigSingleton().detectives[i]
         t = threading.Thread(target=rtmp_worker, args=(det['id'], det['rtmp']['pull_stream'],))
-        t.setDaemon(util.ConfigSingleton().pull_rtmp['daemon'])
+        t.daemon = util.ConfigSingleton().pull_rtmp['daemon']
         ALL_CHILDREN_THREAD.append(t)
         t.start()
 
@@ -96,6 +113,7 @@ def signal_handler(sig, frame):
 
 def video_detective_launch():
     args = _get_args()
+    init_model()
     print(f'拉流workers: {util.ConfigSingleton().detectives}')
     start_rtmp_workers()
 

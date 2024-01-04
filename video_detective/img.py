@@ -9,17 +9,20 @@ point_radius = 15# 设置点的半径，从而决定点的大小
 line_width = 15 #线的宽度
 
 class ImgPolygonSrv():
-    def __init__(self,image_path,frame,polygon:list):
+    def __init__(self,image_path,frame,polygon:list=None):
         # 加载图片
         if image_path is not None:
             self.image = Image.open(image_path)
         if frame is not None:
             self.image = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-        
+        self.path = None
+        if polygon is not None and len(polygon) > 2:
+            # 定义多边形的顶点
+            self.path = Path(polygon)
+
+    def new_board(self):    
         # 创建一个可以在上面绘制的对象
         self.draw = ImageDraw.Draw(self.image)
-        # 定义多边形的顶点
-        self.path = Path(polygon)
 
     #显示图片
     def show(self):
@@ -50,6 +53,7 @@ class ImgPolygonSrv():
 if __name__ == "__main__":
     polygon = [(100, 100), (200, 50), (2500, 100), (2150, 200), (2200, 2200)]
     ips = ImgPolygonSrv("../source/lv.png",None,polygon)
+    ips.new_board()
     test_point = (2250, 1159)
     print("Point", test_point, "is in polygon:", ips.is_point_in_poly(test_point))
     

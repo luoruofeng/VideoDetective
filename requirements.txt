@@ -54,6 +54,7 @@ opencv-python==4.8.1.78
 yolov5==7.0.13
 Flask==3.0.0
 ffmpeg-python==0.4.9
+pyyaml==6.0.1
 
 torch -f https://download.pytorch.org/whl/cu121/torch-1.12.0%2Bcu121-cp38-cp38-linux_x86_64.whl
 torchvision -f https://download.pytorch.org/whl/cu121/torchvision-0.13.0%2Bcu121-cp38-cp38-linux_x86_64.whl
