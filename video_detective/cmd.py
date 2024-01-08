@@ -1,12 +1,20 @@
+import sys
+import os
+# 获取当前脚本文件所在目录的路径
+current_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# 将当前脚本所在目录添加到sys.path中
+sys.path.append(current_path)
+
+
 from flask import Flask, render_template
 import threading
-import util
-from rtmp import RTMPSrv
+from video_detective import util
+from video_detective.rtmp import RTMPSrv
 from argparse import ArgumentParser
 import signal
 import sys
-from detective import DetectiveSrv
-import detective
+from video_detective.detective import DetectiveSrv
+from video_detective import detective
 import torch
 
 DEFAULT_CONFIG_PATH = '../config/config.yaml'
@@ -16,7 +24,7 @@ def init_model():
     global MODEL  
     MODEL = torch.hub.load(util.ConfigSingleton().yolo['repo_or_dir'], util.ConfigSingleton().yolo['model'])  # or yolov5n - yolov5x6, custom
     print(f"初始化模型:{util.ConfigSingleton().yolo['repo_or_dir']}-{util.ConfigSingleton().yolo['model']}  类别列表:{MODEL.names}")
-
+    
 def _get_args():
     parser = ArgumentParser()
     parser.add_argument("-c", "--config-path", type=str, default=DEFAULT_CONFIG_PATH,
@@ -36,10 +44,12 @@ def _get_args():
     args = parser.parse_args()
     return args
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder='../static/', template_folder='../templates/')
 
 ALL_CHILDREN_THREAD = []
 SHUT_DOWN_EVENT = threading.Event()
+# 设置一个标志，初始时为 False
+shutdown_signal_received = False
 
 def rtmp_worker(id, stream_url):
     number_of_retry_short2long = util.ConfigSingleton().pull_rtmp['number_of_retry_short2long']
@@ -72,9 +82,9 @@ def rtmp_worker(id, stream_url):
                     print(f"{long_wait_retry_seconds}秒后重试拉流 (Attempt {retries} of {number_of_retry_short2long})")
                     SHUT_DOWN_EVENT.wait(timeout=long_wait_retry_seconds)
     finally:
-        util.ConfigSingleton().reload()
-        print(f'拉流worker被移除 stream_url:{stream_url}, id:{id} ')
-        print(f'拉流workers: {util.ConfigSingleton().detectives}')
+        # util.ConfigSingleton().reload()
+        # print(f'拉流workers: {util.ConfigSingleton().detectives}')
+        print(f'拉流worker被移除 id:{id} stream_url:{stream_url} ')
 
 def start_rtmp_workers():
     #启动 rtmp 拉流线程
@@ -92,18 +102,29 @@ def index():
 
 @app.route('/stream/<int:stream_id>')
 def stream(stream_id):
+    index = util.ConfigSingleton().get_index_by_id(stream_id)
     # 根据stream_id获取对应的RTMP流地址
-    stream_url = util.ConfigSingleton().detectives[stream_id]['rtmp']['push_stream']
+    stream_url = util.ConfigSingleton().detectives[index]['rtmp']['play_url']
     # 将stream_url传递给前端页面进行播放
     return render_template('stream.html', stream_url=stream_url)
 
 def signal_handler(sig, frame):
+    global shutdown_signal_received
+    # 检查标志是否已经被设置
+    if shutdown_signal_received:
+        # 如果已经接收到信号，直接返回
+        return
+    # 设置标志，表示信号已经接收
+    shutdown_signal_received = True
+    print(f"用户结束程序-子线程数:{len(ALL_CHILDREN_THREAD)} 当前子线程:{ALL_CHILDREN_THREAD} ")
+    global MODEL
+    MODEL = None
+    # util.print_all_threads()
     SHUT_DOWN_EVENT.set()
-    print(f"用户结束程序 当前子线程:{ALL_CHILDREN_THREAD} 子线程数据:{len(ALL_CHILDREN_THREAD)}")
     # 停止RTMP工作线程
     if not util.ConfigSingleton().pull_rtmp['daemon']:
         for thread in ALL_CHILDREN_THREAD:
-            print(f"子线程-等待结束 thread:{thread}")
+            print(f"子线程-等待结束 thread:{thread} {thread.is_alive()}")
             thread.join()  # 等待线程结束
             print(f"子线程-结束 thread:{thread}")
     print("good bye!")

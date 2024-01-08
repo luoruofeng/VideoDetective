@@ -2,6 +2,7 @@ from datetime import datetime
 import yaml
 from threading import Lock
 import cv2
+import threading
 
 # Usage
 # ConfigSingleton().detectives
@@ -85,6 +86,16 @@ def format_time(time, format_str:str="%Y-%m-%d %H:%M:%S"):
     """
     time_obj = datetime.fromtimestamp(time)
     return time_obj.strftime(format_str)
+
+
+
+def print_all_threads():
+    # 获取当前活动的线程列表
+    current_threads = threading.enumerate()
+    
+    # 打印每个线程的信息
+    for thread in current_threads:
+        print(f"Thread ID: {thread.ident}, Name: {thread.name}, Alive: {thread.is_alive()}")
 
 # 示例使用
 if __name__ == "__main__":

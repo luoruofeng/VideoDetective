@@ -1,28 +1,32 @@
 import threading
 import cv2
-from video import VideoSrv
-from rtmp import RTMPSrv
+from video_detective.video import VideoSrv
+from video_detective.rtmp import RTMPSrv
 import torch 
-import util
+from video_detective import util
 import img
 import numpy as np
 import json
-
 class Item():
-    def __init__(self,type_id,coordinate):
-        self.type_id = type_id
-        self.x = coordinate[0]
-        self.y = coordinate[1]
+    def __init__(self,class_id,coordinate, xmin, ymin, xmax, ymax):
+        self.class_id = class_id
+        self.center_x = coordinate[0]
+        self.center_y = coordinate[1]
+        self.xmin = xmin
+        self.ymin = ymin
+        self.xmax = xmax
+        self.ymax = ymax
 
     def __str__(self):
         # 返回一个有效的JSON格式字符串
-        return json.dumps({'type_id': self.type_id, 'x': self.x ,'y': self.y})
+        return json.dumps({'type_id': self.class_id, 'x': self.x ,'y': self.y})
 
-def tensor2item(tensor):
+def tensor2item(tensor) -> Item:
+    # result的格式是[xmin, ymin, xmax, ymax, confidence, class]
     class_id = int(tensor[5])
     xmin, ymin, xmax, ymax = map(int, tensor[:4])
     center_coordinate = util.calculate_center(xmin, ymin, xmax, ymax)
-    return Item(class_id,center_coordinate)
+    return Item(class_id,center_coordinate, xmin, ymin, xmax, ymax)
 
 class DetectiveSrv():
     def __init__(self, play_srv, id, model, polygon:list=None):
@@ -31,6 +35,20 @@ class DetectiveSrv():
         self.play_srv=play_srv
         self.polygon=polygon
         self.id = id
+
+    # 在原始帧上绘制边框和中心点
+    def draw_frame(self,frame, xmin, ymin, xmax, ymax, center_x, center_y, class_id):
+        class_name = self.model.names.get(class_id, 'Unknown')  # 获取类别名称
+        cv2.putText(frame, class_name, (xmin, ymin - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)  # 显示类别名称
+        cv2.rectangle(frame, (xmin, ymin), (xmax, ymax), (0, 255, 0), 2)
+        cv2.circle(frame, (center_x, center_y), 5, (255, 0, 0), -1)  # 绘制中心点
+        cv2.putText(frame, f'({center_x}, {center_y})', (center_x, center_y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)  # 标注中心点坐标
+        # 在视频帧上绘制多边形区域
+        if self.polygon is not None and len(self.polygon) > 2:
+            # 定义多边形的顶点
+            vertices = np.array(self.polygon, np.int32)
+            vertices = vertices.reshape((-1, 1, 2))
+            cv2.polylines(frame, [vertices], isClosed=True, color=(0, 255, 0), thickness=2)
             
     # 示例回调函数
     def process_frame(self,ret,frame):
@@ -41,51 +59,34 @@ class DetectiveSrv():
         results = self.model(rgb_frame)
         # 解析结果
         results = results.xyxy[0]  # 模型返回的检测结果
-        
-        persons = []
+
+        items = [tensor2item(r) for r in results if r[5] == 0]
+        detected = []
         if self.polygon is not None and len(self.polygon) > 2:
             imgsrv=img.ImgPolygonSrv(None,frame,self.polygon)
             imgsrv.new_board()
         # 检测到的每个对象
-        for result in results:
-            # result的格式是[xmin, ymin, xmax, ymax, confidence, class]
-            class_id = int(result[5])
-            confidence = result[4]
-            if class_id == 0:  # 数据集中的person类别的ID是0
-                # 获取坐标
-                xmin, ymin, xmax, ymax = map(int, result[:4])
-                center_x,center_y = util.calculate_center(xmin, ymin, xmax, ymax)
-                # print(f"检测到人的坐标:{confidence:.2f}。人的中心点:X:{center_x} Y:{center_y}。是否在:[{xmin}, {ymin}, {xmax}, {ymax}]区域内。")
-                
-                item = tensor2item(result)
-                
-                if self.polygon is not None and len(self.polygon) > 2:
-                    #有多边形区域-检查物体的中心点是否在多边形内
-                    if imgsrv.is_point_in_poly((center_x,center_y)):
-                        persons.append(item)
-                else:#无多边形区域
-                    persons.append(item)
+        for item in items:
+            if self.polygon is not None and len(self.polygon) > 2:
+                #有多边形区域-检查物体的中心点是否在多边形内
+                if imgsrv.is_point_in_poly((item.center_x,item.center_y)):
+                    detected.append(item)
+            else:#无多边形区域
+                detected.append(item)
+        
+        # 画框
+        draw_items = items
+        if util.ConfigSingleton().yolo["show_detected_line"]:
+            draw_items = detected
+            
+        for subject in draw_items:
+            self.draw_frame(frame, subject.xmin, subject.ymin, subject.xmax, subject.ymax, subject.center_x, subject.center_y, subject.class_id)
 
+        if len(detected) > 0:
+            print(f"报警- id:{self.id} 区域内人数:{len(detected)}")
+            detected=[]
 
-                # 在原始帧上绘制边框和中心点
-                class_name = self.model.names.get(class_id, 'Unknown')  # 获取类别名称
-                cv2.putText(frame, class_name, (xmin, ymin - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)  # 显示类别名称
-                cv2.rectangle(frame, (xmin, ymin), (xmax, ymax), (0, 255, 0), 2)
-                cv2.circle(frame, (center_x, center_y), 5, (255, 0, 0), -1)  # 绘制中心点
-                cv2.putText(frame, f'({center_x}, {center_y})', (center_x, center_y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)  # 标注中心点坐标
-                # 在视频帧上绘制多边形区域
-                if self.polygon is not None and len(self.polygon) > 2:
-                    # 定义多边形的顶点
-                    vertices = np.array(self.polygon, np.int32)
-                    vertices = vertices.reshape((-1, 1, 2))
-                    cv2.polylines(frame, [vertices], isClosed=True, color=(0, 255, 0), thickness=2)
-
-        # 显示带有检测框的帧
-        # cv2.imshow('Frame', frame)
-
-        if len(persons) > 0:
-            print(f"报警- id:{self.id} 区域内人数:{len(persons)}")
-            persons=[]
+        return frame
 
     def detect_person(self):
         # 人的坐标列表
@@ -112,6 +113,6 @@ if __name__ == "__main__":
     url = util.ConfigSingleton().detectives[1]['rtmp']["pull_stream"]
     polygon=get_polygon_coordinates(1)
     model = torch.hub.load(util.ConfigSingleton().yolo['repo_or_dir'], util.ConfigSingleton().yolo['model'])  # or yolov5n - yolov5x6, custom
-    play_srv = RTMPSrv(url,stop_event=threading.Event())
+    play_srv = RTMPSrv(url,stop_event=threading.Event(),cache_size=util.ConfigSingleton().pull_rtmp["cache_size"])
     ds = DetectiveSrv(play_srv=play_srv, model=model, polygon=polygon)
     ds.detect_person()

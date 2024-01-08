@@ -40,12 +40,13 @@ while True:
         print("无法获取帧，退出")
         break
 
-    # 写入帧数据到管道
-    process.stdin.write(frame.tobytes())
 
     # 显示帧内容
+    # cv2.putText(frame, "测试一下rtmp", (100, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+    # 写入帧数据到管道
+    process.stdin.write(frame.tobytes())
     # cv2.imshow('Video Stream', frame)
-
+      
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
 

@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HTML-FLV直播</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/stream.css') }}">
+  <script charset="utf-8" src="{{ url_for('static', filename='js/flv.min.js') }}"></script>
+</head>
+<body>
+  <div class="container">
+    <video id="video" width="640" height="480" controls></video>
+  </div>
+
+  <script defer>
+    (function() {
+      streamURL="{{stream_url}}"
+      if (flvjs.isSupported()) {
+        var videoElement = document.getElementById('video');
+        var flvPlayer = flvjs.createPlayer({
+            type: 'flv',
+            url: streamURL
+        });
+        flvPlayer.attachMediaElement(videoElement);
+        flvPlayer.load();
+        flvPlayer.play();
+      }
+    })();
+  </script></body>
+</html>

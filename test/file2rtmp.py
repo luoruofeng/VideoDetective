@@ -1,5 +1,4 @@
 import cv2
-import ffmpeg
 import subprocess
 
 class RTMPStreamer:
