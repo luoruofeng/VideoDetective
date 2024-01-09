@@ -23,43 +23,7 @@ class BlockingDeque:
                 self.condition.wait()
             return self.deque.popleft()
 
-# 常规拉流
-class RTMPPuller:
-    def __init__(self, rtmp_url,id,stop_event:threading.Event):
-        self.rtmp_url = rtmp_url
-        self.id = id
-        self.capture = None
-        self.stop_event = stop_event
 
-    #打开RTMP流，并在一个新线程中开始读取帧。
-    def start(self):
-        self.capture = cv2.VideoCapture(self.rtmp_url)
-        if not self.capture.isOpened():
-            raise ValueError(f"拉流OpenVC-无法打开流 id:{self.id} url:{self.rtmp_url}")
-        # 拉流
-        try:
-            print(f"拉流OpenVC-开始 id:{self.id}")
-            while not self.stop_event.is_set():
-                ret, frame = self.capture.read()
-                if not ret:
-                    break
-                # Process the frame (e.g., display it or perform detection)
-                # cv2.imshow('RTMP Stream', frame)
-                if cv2.waitKey(util.ConfigSingleton().yolo['refresh_time_ms']) & 0xFF == ord('q'):
-                    break
-        except Exception as e:
-            print(f"拉流OpenVC-错误 id:{self.id} Exception occurred: {e}")
-            return
-        finally:
-            print(f"拉流OpenVC-结束 id:{self.id}")
-            
-
-    #停止读取流，并关闭与RTMP流的连接。
-    def stop(self):
-        if self.capture is not None:
-            self.capture.release()
-        # cv2.destroyAllWindows()
-        print(f"拉流OpenVC-结束 id:{self.id}",)
 
 # IOC拉流
 class RTMPSrv:
@@ -67,10 +31,20 @@ class RTMPSrv:
         self.rtmp_url = rtmp_url
         self.id = id
         self.stop_event = stop_event
+        self.running = False
         self.capture = None
         self.pull_cache_queue = BlockingDeque(maxlen=cache_size)
         self.exception_queue = queue.Queue()
         self.p_thread = None
+
+    #停止读取流，并关闭与RTMP流的连接。
+    def stop(self):
+        self.running = False
+        if self.capture is not None:
+            self.capture.release()
+        # cv2.destroyAllWindows()
+        print(f"拉流OpenVC-结束 id:{self.id}")
+
 
     # 释放推流资源
     def stop_p_thread(self,process):
@@ -99,7 +73,7 @@ class RTMPSrv:
             process.stdout = null_output
             process.stderr = null_output
 
-            while not self.stop_event.is_set():
+            while not self.stop_event.is_set() and self.running:
                 ret, frame = self.pull_cache_queue.get()
                 try:
                     frame = frame_callback(ret, frame)
@@ -139,7 +113,8 @@ class RTMPSrv:
 
             # 拉流
             print(f"拉流OpenVC-开始 id:{self.id}")
-            while not self.stop_event.is_set():
+            self.running = True
+            while not self.stop_event.is_set() and self.running:
                 ret, frame = self.capture.read()
                 self.pull_cache_queue.put((ret, frame))
                 if not ret:
@@ -148,9 +123,7 @@ class RTMPSrv:
             print(f"拉流OpenVC-错误 id:{self.id} Exception occurred: {e}")
             return
         finally:
-            print(f"拉流OpenVC-结束 id:{self.id}")
-            if self.capture is not None:
-                self.capture.release()
+            self.stop()
 
 
 if __name__ == "__main__":

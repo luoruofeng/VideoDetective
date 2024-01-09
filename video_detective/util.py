@@ -8,6 +8,7 @@ import threading
 # ConfigSingleton().detectives
 # ConfigSingleton().yolo
 # ConfigSingleton().pull_rtmp
+# ConfigSingleton().server
 class ConfigSingleton:
     _instance = None
     _lock = Lock()
@@ -23,9 +24,33 @@ class ConfigSingleton:
         if self._initialized:
             return
         self._initialized = True
+        self.config_path = config_path
         with open(config_path, 'r', encoding="utf8") as file:
             self.config = yaml.safe_load(file)
-
+        
+    def get_detectives_changed(self, other):
+        changed = []
+        ods  = other["detectives"]
+        #新增和修改的detectives
+        for d in self.detectives:
+            if d["id"] not in [item["id"] for item in ods]:
+                changed.append(d)
+                continue
+            else:
+                od = list(filter(lambda obj : obj["id"] == d["id"], ods))[0]
+                if (od["rtmp"]["pull_stream"],od["rtmp"]["push_stream"],od["rtmp"]["play_url"],od["monitoring_topics"],od["polygon_coordinates"]) == (d["rtmp"]["pull_stream"],d["rtmp"]["push_stream"],d["rtmp"]["play_url"],d["monitoring_topics"],d["polygon_coordinates"]):
+                    continue
+                else:
+                    changed.append(d)
+        #删除的detectives
+        for o in ods:
+            if o["id"] not in [item["id"] for item in self.detectives]:
+                o['rtmp']["push_stream"],o['rtmp']["pull_stream"],o['rtmp']["play_url"],o["monitoring_topics"],o["polygon_coordinates"] = None,None,None,None,None
+                changed.append(o)
+                continue
+        print(f"已修改的配置:{changed}")
+        return changed
+        
     def contain_pull_rtmp(self, val: str):
         self.reload()
         for o in self.detectives:
@@ -56,7 +81,7 @@ class ConfigSingleton:
             
             # 设置重新初始化标志
             self._initialized = True
-
+        
     @property
     def detectives(self):
         return self.config['detectives']
@@ -68,6 +93,10 @@ class ConfigSingleton:
     @property
     def pull_rtmp(self):
         return self.config['pull_rtmp']
+    
+    @property
+    def server(self):
+        return self.config['server']
 
 def calculate_center(xmin, ymin, xmax, ymax):
     # 计算中心点坐标

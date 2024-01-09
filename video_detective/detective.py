@@ -88,7 +88,7 @@ class DetectiveSrv():
 
         return frame
 
-    def detect_person(self):
+    def start_detect(self):
         # 人的坐标列表
         people_coordinates = []
         self.play_srv.read(frame_callback=self.process_frame)
@@ -97,7 +97,7 @@ class DetectiveSrv():
 def get_polygon_coordinates(index:int):
     # 并将列表中的列表转换为元组
     coords =  util.SafeDict(util.ConfigSingleton().detectives[index])['polygon_coordinates']
-    if coords is None:
+    if coords is None or len(coords) < 3:
         return None
     polygon_coordinates = [tuple(coord) for coord in coords]
     return polygon_coordinates
@@ -115,4 +115,4 @@ if __name__ == "__main__":
     model = torch.hub.load(util.ConfigSingleton().yolo['repo_or_dir'], util.ConfigSingleton().yolo['model'])  # or yolov5n - yolov5x6, custom
     play_srv = RTMPSrv(url,stop_event=threading.Event(),cache_size=util.ConfigSingleton().pull_rtmp["cache_size"])
     ds = DetectiveSrv(play_srv=play_srv, model=model, polygon=polygon)
-    ds.detect_person()
+    ds.start_detect()
