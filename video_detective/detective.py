@@ -52,9 +52,12 @@ class DetectiveSrv():
             
     # 示例回调函数
     def process_frame(self,ret,frame):
+        if frame is None:
+            return None
         # 使用YOLOv5模型检测当前帧中的对象
         # 将BGR图像转换为RGB，因为YOLO模型需要RGB图像
         rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
         # 将图像转换为模型需要的格式
         results = self.model(rgb_frame)
         # 解析结果

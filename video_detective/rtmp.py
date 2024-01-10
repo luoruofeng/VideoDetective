@@ -1,3 +1,5 @@
+import subprocess
+import traceback
 import ffmpeg
 import cv2
 import threading
@@ -39,11 +41,12 @@ class RTMPSrv:
 
     #停止读取流，并关闭与RTMP流的连接。
     def stop(self):
-        self.running = False
         if self.capture is not None:
+            print(f"拉流OpenVC-即将结束 id:{self.id}")
             self.capture.release()
-        # cv2.destroyAllWindows()
+            self.capture = None
         print(f"拉流OpenVC-结束 id:{self.id}")
+        # cv2.destroyAllWindows()
 
 
     # 释放推流资源
@@ -53,6 +56,7 @@ class RTMPSrv:
             process.wait()
     
     def processAndPush(self, frame_callback = None):
+        process = None
         try:
             stream_url = util.ConfigSingleton().detectives[util.ConfigSingleton().get_index_by_id(self.id)]["rtmp"]["push_stream"]
             # 获取视频源的属性
@@ -60,8 +64,7 @@ class RTMPSrv:
             height = int(self.capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
             fps = int(self.capture.get(cv2.CAP_PROP_FPS))
             print(f"拉流OpenVC-处理推流线程-参数 id:{self.id} width:{width} height:{height} fps:{fps}")
-            # 设置输出目的地为 /dev/null 或 NUL，取决于操作系统
-            null_output = open(os.devnull, 'w')
+
             # 设置ffmpeg转码和推流的参数
             process = (
                 ffmpeg
@@ -70,20 +73,21 @@ class RTMPSrv:
                 .overwrite_output()
                 .run_async(pipe_stdin=True)
             )
-            process.stdout = null_output
-            process.stderr = null_output
-
+            
             while not self.stop_event.is_set() and self.running:
                 ret, frame = self.pull_cache_queue.get()
                 try:
                     frame = frame_callback(ret, frame)
                 except Exception as e:
-                    print("拉流OpenVC-处理推流线程-模型处理报错",e)
+                    print(f"拉流OpenVC-处理推流线程-模型处理报错 id:{self.id} exception:{e}")
+                     # 捕获异常并打印堆栈跟踪信息
+                    # traceback.print_exc()
                 if frame_callback is not None:
                     # cv2.imshow('RTMP Stream', frame)
                     # 将捕获的帧写入ffmpeg进程的标准输入
                     if process.poll() is None:
-                        process.stdin.write(frame.tobytes())
+                        if frame is not None:
+                            process.stdin.write(frame.tobytes())
                     if cv2.waitKey(util.ConfigSingleton().yolo['refresh_time_ms']) & 0xFF == ord('q'):
                         break
                 else:
@@ -91,17 +95,21 @@ class RTMPSrv:
         finally:
             if process is not None:
                 self.stop_p_thread(process)
-            print(f"拉流OpenVC-处理推流线程-结束 id:{self.id}")
-        
+                print(f"拉流OpenVC-处理推流线程-结束 id:{self.id}")
+
+    def stop_thread(self):
+        self.running = False
+        self.stop()
+    
     def read(self, frame_callback=None)->list:
         # 准备拉流
         self.capture = cv2.VideoCapture(self.rtmp_url)
         if not self.capture.isOpened():
             raise ValueError(f"拉流OpenVC-无法打开流 id:{self.id} url:{self.rtmp_url}")
         try:
+            self.capture = cv2.VideoCapture(self.rtmp_url)
             if not self.capture.isOpened():
                 raise ValueError(f"拉流OpenVC-无法打开流 id:{self.id} url:{self.rtmp_url}")
-            self.capture = cv2.VideoCapture(self.rtmp_url)
 
             # 准备处理并且推流
             if self.p_thread is None:
@@ -113,7 +121,6 @@ class RTMPSrv:
 
             # 拉流
             print(f"拉流OpenVC-开始 id:{self.id}")
-            self.running = True
             while not self.stop_event.is_set() and self.running:
                 ret, frame = self.capture.read()
                 self.pull_cache_queue.put((ret, frame))
@@ -125,17 +132,5 @@ class RTMPSrv:
         finally:
             self.stop()
 
-
 if __name__ == "__main__":
-    # Usage example
-    rtmp_url = 'rtmp://example.com/live/stream1'
-    rtmp_puller = RTMPPuller(rtmp_url)
-
-    # Start pulling the RTMP stream
-    rtmp_puller.start()
-
-    # Do something else while the stream is being pulled...
-    # ...
-
-    # Stop pulling the stream when done
-    rtmp_puller.stop()
+    pass

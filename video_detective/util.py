@@ -48,7 +48,6 @@ class ConfigSingleton:
                 o['rtmp']["push_stream"],o['rtmp']["pull_stream"],o['rtmp']["play_url"],o["monitoring_topics"],o["polygon_coordinates"] = None,None,None,None,None
                 changed.append(o)
                 continue
-        print(f"已修改的配置:{changed}")
         return changed
         
     def contain_pull_rtmp(self, val: str):

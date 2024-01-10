@@ -22,7 +22,7 @@ MODEL = None
 
 def init_model():
     global MODEL  
-    MODEL = torch.hub.load(util.ConfigSingleton().yolo['repo_or_dir'], util.ConfigSingleton().yolo['model'])  # or yolov5n - yolov5x6, custom
+    MODEL = torch.hub.load(util.ConfigSingleton().yolo['repo_or_dir'], util.ConfigSingleton().yolo['model'])
     print(f"初始化模型:{util.ConfigSingleton().yolo['repo_or_dir']}-{util.ConfigSingleton().yolo['model']}  类别列表:{MODEL.names}")
     
 def _get_args():
@@ -35,18 +35,11 @@ def _get_args():
                         help="Demo server name.")
     parser.add_argument("--debug", type=bool, default=False, help="server is debug model")
 
-    # parser.add_argument("--cpu-only", action="store_true", help="Run demo with CPU only")
-    # parser.add_argument("--share", action="store_true", default=False,
-    #                     help="Create a publicly shareable link for the interface.")
-    # parser.add_argument("--inbrowser", action="store_true", default=False,
-    #                     help="Automatically launch the interface in a new tab on the default browser.")
-
     args = parser.parse_args()
     return args
 
 app = Flask(__name__, static_folder='../static/', template_folder='../templates/')
 
-ALL_CHILDREN_THREAD = []
 SHUT_DOWN_EVENT = threading.Event()
 SHUTDOWN_SIGNAL_RECEIVED = False # 设置一个标志，初始时为 False
 
@@ -61,21 +54,21 @@ class Worker():
         self.polygon_coordinates = None
         self.play_srv = None
         self.ds:DetectiveSrv = None
+        self.thread = None
 
-    def set_props(self,pull_stream,push_stream,play_url,monitoring_topics,polygon_coordinates,):
+    def set_props(self,pull_stream,push_stream,play_url,monitoring_topics,polygon_coordinates):
         self.pull_stream = pull_stream
         self.push_stream = push_stream
         self.play_url = play_url
         self.monitoring_topics = monitoring_topics
         self.polygon_coordinates = polygon_coordinates
+
+    def set_srv(self):
         self.play_srv = RTMPSrv(self.pull_stream ,stop_event=SHUT_DOWN_EVENT,id=self.id,cache_size=RTMP_CACHE_SIZE)
-        self.ds = DetectiveSrv(play_srv=self.play_srv,id=id, model=MODEL, polygon=self.polygon_coordinates)
+        self.ds = DetectiveSrv(play_srv=self.play_srv,id=self.id, model=MODEL, polygon=self.polygon_coordinates)
 
     def stop(self):
-        self.play_srv.stop()
-
-
-from typing import TypedDict
+        self.play_srv.stop_thread()
 
 
 RTMP_WORKER_DICT:dict[str, Worker] = {} #k:id v:worker
@@ -94,33 +87,39 @@ long_wait_retry_seconds = util.ConfigSingleton().pull_rtmp['long_wait_retry_seco
 def rtmp_worker(id, worker:Worker):
     retries = 0
     try:
-        while not SHUT_DOWN_EVENT.is_set():
+        while not SHUT_DOWN_EVENT.is_set() and worker.play_srv.running:
             try:
                 worker.ds.start_detect()
             except Exception as e:
-                util.ConfigSingleton().reload()
                 retries += 1
                 if retries < number_of_retry_short2long:
-                    print(f"{short_wait_retry_seconds}秒后重试拉流 (Attempt {retries} of {number_of_retry_short2long})")
+                    print(f"{short_wait_retry_seconds}秒后重试拉流 (Attempt {retries} of {number_of_retry_short2long} ) id:{id} exception:{e}")
                     SHUT_DOWN_EVENT.wait(timeout=short_wait_retry_seconds)
                 else:
-                    print(f"{long_wait_retry_seconds}秒后重试拉流 (Attempt {retries} of {number_of_retry_short2long})")
+                    print(f"{long_wait_retry_seconds}秒后重试拉流 (Attempt {retries} of {number_of_retry_short2long} ) id:{id} exception:{e}")
                     SHUT_DOWN_EVENT.wait(timeout=long_wait_retry_seconds)
     finally:
-        # util.ConfigSingleton().reload()
-        # print(f'拉流workers: {util.ConfigSingleton().detectives}')
         print(f'拉流worker被移除 id:{id} stream_url:{worker.push_stream} ')
 
 
 def start_rtmp_workers(workers:dict[str,Worker]):
     #启动 rtmp 拉流线程
     for id, worker in workers.items():
-        worker.stop() #先停止原有worker的工作-停止原有线程
-        if worker.pull_stream is not None:
-            t = threading.Thread(target=rtmp_worker, args=(id, worker,))
-            t.daemon = util.ConfigSingleton().pull_rtmp['daemon']
-            ALL_CHILDREN_THREAD.append(t)
-            t.start()
+        if worker.thread is not None and worker.thread.is_alive():
+            worker.stop() #先停止原有worker的工作-停止原有线程
+            worker.thread.join() #等待原有线程结束再开启新线程
+            print(f"原有线程结束。 id:{id}")
+            if worker.pull_stream is None:#pull_stream是None表示需要刪除
+                del(RTMP_WORKER_DICT[worker.id])
+                continue
+            
+        print(f"拉流worker準備開始 id:{id}")
+        worker.set_srv() #賦新srv
+        t = threading.Thread(target=rtmp_worker, args=(id, worker,))
+        t.daemon = util.ConfigSingleton().pull_rtmp['daemon']
+        worker.thread = t
+        worker.play_srv.running = True
+        t.start()
 
 @app.route('/')
 def index():
@@ -155,11 +154,13 @@ def check_config_changes():
         if len(changed) > 0:  # 检查新配置是否和之前的全局变量不同
             CONFIG_SINGLETON = new_config  # 更新全局变量
             for cd in changed:
+                if cd["id"] not in RTMP_WORKER_DICT:#新增
+                    RTMP_WORKER_DICT[cd["id"]] = Worker(cd["id"])
                 worker = RTMP_WORKER_DICT[cd["id"]]
                 worker.set_props(cd["rtmp"]["pull_stream"],cd["rtmp"]["push_stream"],cd["rtmp"]["play_url"],cd["monitoring_topics"],cd["polygon_coordinates"])
                 changed_workers[cd["id"]] = worker
-            start_rtmp_workers(changed_workers)
-            print(f"修改原有workers:{changed_workers}")
+            print(f"修改原有workers:{[(w.id,w.pull_stream) for w in changed_workers.values()]}")
+            start_rtmp_workers(changed_workers) #會阻塞
         SHUT_DOWN_EVENT.wait(util.ConfigSingleton().server["check_config_second"])
 
 
@@ -171,17 +172,17 @@ def signal_handler(sig, frame):
         return
     # 设置标志，表示信号已经接收
     SHUTDOWN_SIGNAL_RECEIVED = True
-    print(f"用户结束程序-子线程数:{len(ALL_CHILDREN_THREAD)} 当前子线程:{ALL_CHILDREN_THREAD} ")
+    print(f"用户结束程序-子线程数:{len(RTMP_WORKER_DICT)} 当前子线程:{RTMP_WORKER_DICT} ")
     global MODEL
     MODEL = None
     # util.print_all_threads()
     SHUT_DOWN_EVENT.set()
     # 停止RTMP工作线程
     if not util.ConfigSingleton().pull_rtmp['daemon']:
-        for thread in ALL_CHILDREN_THREAD:
-            print(f"子线程-等待结束 thread:{thread} {thread.is_alive()}")
-            thread.join()  # 等待线程结束
-            print(f"子线程-结束 thread:{thread}")
+        for id,worker in RTMP_WORKER_DICT.items():
+            print(f"子线程-等待结束 id:{id} worker:{worker}")
+            worker.thread.join()  # 等待线程结束
+            print(f"子线程-结束  id:{id} worker:{worker}")
     print("good bye!")
     sys.exit(0)
 
