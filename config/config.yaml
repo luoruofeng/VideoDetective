@@ -1,7 +1,7 @@
 detectives:
   - id: 3
     rtmp:
-      pull_stream: https://cn-jsyz-ct-03-27.bilivideo.com/live-bvc/949839/live_3494368669338503_7711584_1500/index99.m3u8
+      pull_stream: https://cn-jsyz-ct-03-27.bilivideo.com/live-bvc/949839/live_3494368669338503_7711584_1500/index.m3u8
       push_stream: rtmp://localhost/live/livestream123
       play_url: http://localhost:8080/live/livestream123.flv
     monitoring_topics:
@@ -26,9 +26,11 @@ detectives:
       - [2200, 2200]
 
 yolo:
+  models: 
+    - name: yolov5m #模型名 
+      repo_or_dir: ultralytics/yolov5 #模型路径/库 
+    - name: ./fire_smoke.pt #模型名 
   refresh_time_ms: 0  # YOLO模型的刷新时间，单位为毫秒
-  model: yolov5m #模型名
-  repo_or_dir: ultralytics/yolov5 #模型路径/库
   show_detected_line: True #探测的需要报警的物体才显示框,否则探测到的所有物体都显示框。
 
 pull_rtmp: 

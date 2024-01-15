@@ -15,16 +15,11 @@ import signal
 import sys
 from video_detective.detective import DetectiveSrv
 from video_detective import detective
-import torch
+from video_detective.model import ModelSrv
+import video_detective.model as m
 
 DEFAULT_CONFIG_PATH = '../config/config.yaml'
-MODEL = None
 
-def init_model():
-    global MODEL  
-    MODEL = torch.hub.load(util.ConfigSingleton().yolo['repo_or_dir'], util.ConfigSingleton().yolo['model'])
-    print(f"初始化模型:{util.ConfigSingleton().yolo['repo_or_dir']}-{util.ConfigSingleton().yolo['model']}  类别列表:{MODEL.names}")
-    
 def _get_args():
     parser = ArgumentParser()
     parser.add_argument("-c", "--config-path", type=str, default=DEFAULT_CONFIG_PATH,
@@ -65,7 +60,7 @@ class Worker():
 
     def set_srv(self):
         self.play_srv = RTMPSrv(self.pull_stream ,stop_event=SHUT_DOWN_EVENT,id=self.id,cache_size=RTMP_CACHE_SIZE)
-        self.ds = DetectiveSrv(play_srv=self.play_srv,id=self.id, model=MODEL, polygon=self.polygon_coordinates)
+        self.ds = DetectiveSrv(play_srv=self.play_srv,id=self.id, models=m.MODELS, polygon=self.polygon_coordinates)
 
     def stop(self):
         self.play_srv.stop_thread()
@@ -99,7 +94,7 @@ def rtmp_worker(id, worker:Worker):
                     print(f"{long_wait_retry_seconds}秒后重试拉流 (Attempt {retries} of {number_of_retry_short2long} ) id:{id} exception:{e}")
                     SHUT_DOWN_EVENT.wait(timeout=long_wait_retry_seconds)
     finally:
-        print(f'拉流worker被移除 id:{id} stream_url:{worker.push_stream} ')
+        print(f'拉流worker被移除 id:{id} stream_url:{worker.pull_stream} ')
 
 
 def start_rtmp_workers(workers:dict[str,Worker]):
@@ -188,9 +183,9 @@ def signal_handler(sig, frame):
 
 #TODO 添加对config的监控 修改后可以修改拉流文件
 
-def video_detective_launch():
+def video_detective_launch(): 
     args = _get_args() #获取启动参数
-    init_model() #初始化模块
+    ModelSrv() #初始化模块
     init_workers() #初始化rtmp workers
     print(f'拉流workers: {util.ConfigSingleton().detectives}')
     start_rtmp_workers(RTMP_WORKER_DICT)#开始rtmp拉流

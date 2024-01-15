@@ -8,37 +8,40 @@ import img
 import numpy as np
 import json
 class Item():
-    def __init__(self,class_id,coordinate, xmin, ymin, xmax, ymax):
+    def __init__(self,class_id,coordinate, xmin, ymin, xmax, ymax,confidence, model):
         self.class_id = class_id
+        self.class_name = [v for k,v in model.names.items() if k == self.class_id][0]
         self.center_x = coordinate[0]
         self.center_y = coordinate[1]
         self.xmin = xmin
         self.ymin = ymin
         self.xmax = xmax
         self.ymax = ymax
+        self.confidence = confidence
 
     def __str__(self):
         # 返回一个有效的JSON格式字符串
         return json.dumps({'type_id': self.class_id, 'x': self.x ,'y': self.y})
 
-def tensor2item(tensor) -> Item:
+def tensor2item(tensor,model) -> Item:
     # result的格式是[xmin, ymin, xmax, ymax, confidence, class]
     class_id = int(tensor[5])
     xmin, ymin, xmax, ymax = map(int, tensor[:4])
     center_coordinate = util.calculate_center(xmin, ymin, xmax, ymax)
-    return Item(class_id,center_coordinate, xmin, ymin, xmax, ymax)
+    confidence = float(tensor[4])
+    return Item(class_id,center_coordinate, xmin, ymin, xmax, ymax, confidence, model)
 
 class DetectiveSrv():
-    def __init__(self, play_srv, id, model, polygon:list=None):
+    def __init__(self, play_srv, id, models, polygon:list=None):
         # 初始化YOLOv5模型
-        self.model = model
+        self.models = models
         self.play_srv=play_srv
         self.polygon=polygon
         self.id = id
+        self.monitoring_topics = util.ConfigSingleton().detectives[util.ConfigSingleton().get_index_by_id(self.id)]["monitoring_topics"]
 
     # 在原始帧上绘制边框和中心点
-    def draw_frame(self,frame, xmin, ymin, xmax, ymax, center_x, center_y, class_id):
-        class_name = self.model.names.get(class_id, 'Unknown')  # 获取类别名称
+    def draw_frame(self,frame, xmin, ymin, xmax, ymax, center_x, center_y, class_name):
         cv2.putText(frame, class_name, (xmin, ymin - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)  # 显示类别名称
         cv2.rectangle(frame, (xmin, ymin), (xmax, ymax), (0, 255, 0), 2)
         cv2.circle(frame, (center_x, center_y), 5, (255, 0, 0), -1)  # 绘制中心点
@@ -58,36 +61,47 @@ class DetectiveSrv():
         # 将BGR图像转换为RGB，因为YOLO模型需要RGB图像
         rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
-        # 将图像转换为模型需要的格式
-        results = self.model(rgb_frame)
-        # 解析结果
-        results = results.xyxy[0]  # 模型返回的检测结果
-
-        items = [tensor2item(r) for r in results if r[5] == 0]
-        detected = []
+        imgsrv = None
         if self.polygon is not None and len(self.polygon) > 2:
             imgsrv=img.ImgPolygonSrv(None,frame,self.polygon)
             imgsrv.new_board()
-        # 检测到的每个对象
-        for item in items:
-            if self.polygon is not None and len(self.polygon) > 2:
-                #有多边形区域-检查物体的中心点是否在多边形内
-                if imgsrv.is_point_in_poly((item.center_x,item.center_y)):
-                    detected.append(item)
-            else:#无多边形区域
-                detected.append(item)
-        
-        # 画框
-        draw_items = items
-        if util.ConfigSingleton().yolo["show_detected_line"]:
-            draw_items = detected
-            
-        for subject in draw_items:
-            self.draw_frame(frame, subject.xmin, subject.ymin, subject.xmax, subject.ymax, subject.center_x, subject.center_y, subject.class_id)
 
-        if len(detected) > 0:
-            print(f"报警- id:{self.id} 区域内人数:{len(detected)}")
-            detected=[]
+        all_detected = []
+        class_ids = []
+        for model in self.models:
+            # 将图像转换为模型需要的格式
+            results = model(rgb_frame)
+            results = results.xyxy[0]  # 模型返回的检测结果
+            
+            items = []
+            if model.names.get(0,"Unknown").lower() == "person":#模型第一个是person说明是yolov5官方模型-添加模型的“人”为监测对象
+                if "person" in self.monitoring_topics:
+                    items += [tensor2item(r, model) for r in results if r[5] == 0]
+            else:#非官方模型-添加模型的所有类别作为监测对象
+                items += [tensor2item(r, model) for r in results if r[5] in [k for k,v in model.names.items() if v in self.monitoring_topics]]
+            
+            detected = []
+            # 检测到的每个对象
+            for item in items:
+                if self.polygon is not None and len(self.polygon) > 2 and item.class_id == 0 and model.names.get(0,"Unknown").lower() == "person":
+                    #有多边形区域-检查人的中心点是否在多边形内
+                    if imgsrv.is_point_in_poly((item.center_x,item.center_y)):
+                        detected.append(item)
+                else:#无多边形区域
+                    detected.append(item)
+            if len(detected) < 1:                    
+                continue
+            all_detected += detected
+            
+        # 画框
+        if util.ConfigSingleton().yolo["show_detected_line"]:
+            for do in all_detected:
+                self.draw_frame(frame, do.xmin, do.ymin, do.xmax, do.ymax, do.center_x, do.center_y, model.names.get(do.class_id,""))
+
+        # 报警
+        if len(all_detected) > 0:
+            print(f"报警- id:{self.id} 报警物体:{[{'name':do.class_name,'confidence':do.confidence ,'x':do.center_x,'y':do.center_y,} for do in all_detected]}")
+            all_detected=[]
 
         return frame
 
@@ -106,16 +120,4 @@ def get_polygon_coordinates(index:int):
     return polygon_coordinates
 
 if __name__ == "__main__":
-    # 计算合理的暂停时间
-    # wait_time = int(1 / fps * 1000)
-
-    # print("fps:",util.get_fps('../source/small_road.mp4'))
-    # ds = DetectiveSrv(srv=VideoSrv(file_path,callback_interval=interval=util.ConfigSingleton().yolo["refresh_time_ms"]),polygon=[(100, 100), (200, 50), (700, 400), (450, 400)])
-    # ds.detect_person()
-
-    url = util.ConfigSingleton().detectives[1]['rtmp']["pull_stream"]
-    polygon=get_polygon_coordinates(1)
-    model = torch.hub.load(util.ConfigSingleton().yolo['repo_or_dir'], util.ConfigSingleton().yolo['model'])  # or yolov5n - yolov5x6, custom
-    play_srv = RTMPSrv(url,stop_event=threading.Event(),cache_size=util.ConfigSingleton().pull_rtmp["cache_size"])
-    ds = DetectiveSrv(play_srv=play_srv, model=model, polygon=polygon)
-    ds.start_detect()
+    pass
