@@ -1,14 +1,12 @@
-import threading
+import time
 import cv2
-from video_detective.video import VideoSrv
-from video_detective.rtmp import RTMPSrv
-import torch 
 from video_detective import util
 import img
 import numpy as np
 import json
+from video_detective import kafka
 class Item():
-    def __init__(self,class_id,coordinate, xmin, ymin, xmax, ymax,confidence, model):
+    def __init__(self,class_id,coordinate, xmin, ymin, xmax, ymax,confidence, detective_id, model):
         self.class_id = class_id
         self.class_name = [v for k,v in model.names.items() if k == self.class_id][0]
         self.center_x = coordinate[0]
@@ -18,18 +16,20 @@ class Item():
         self.xmax = xmax
         self.ymax = ymax
         self.confidence = confidence
+        self.time = time.time()
+        self.detective_id = detective_id #监控流的id
 
     def __str__(self):
         # 返回一个有效的JSON格式字符串
         return json.dumps({'type_id': self.class_id, 'x': self.x ,'y': self.y})
 
-def tensor2item(tensor,model) -> Item:
+def tensor2item(tensor,detective_id,model) -> Item:
     # result的格式是[xmin, ymin, xmax, ymax, confidence, class]
     class_id = int(tensor[5])
     xmin, ymin, xmax, ymax = map(int, tensor[:4])
     center_coordinate = util.calculate_center(xmin, ymin, xmax, ymax)
     confidence = float(tensor[4])
-    return Item(class_id,center_coordinate, xmin, ymin, xmax, ymax, confidence, model)
+    return Item(class_id,center_coordinate, xmin, ymin, xmax, ymax, confidence,detective_id, model)
 
 class DetectiveSrv():
     def __init__(self, play_srv, id, models, polygon:list=None):
@@ -76,9 +76,9 @@ class DetectiveSrv():
             items = []
             if model.names.get(0,"Unknown").lower() == "person":#模型第一个是person说明是yolov5官方模型-添加模型的“人”为监测对象
                 if "person" in self.monitoring_topics:
-                    items += [tensor2item(r, model) for r in results if r[5] == 0]
+                    items += [tensor2item(r,self.id, model) for r in results if r[5] == 0]
             else:#非官方模型-添加模型的所有类别作为监测对象
-                items += [tensor2item(r, model) for r in results if r[5] in [k for k,v in model.names.items() if v in self.monitoring_topics]]
+                items += [tensor2item(r,self.id, model) for r in results if r[5] in [k for k,v in model.names.items() if v in self.monitoring_topics]]
             
             detected = []
             # 检测到的每个对象
@@ -92,7 +92,7 @@ class DetectiveSrv():
             if len(detected) < 1:                    
                 continue
             all_detected += detected
-            
+
         # 画框
         if util.ConfigSingleton().yolo["show_detected_line"]:
             for do in all_detected:
@@ -100,14 +100,12 @@ class DetectiveSrv():
 
         # 报警
         if len(all_detected) > 0:
-            print(f"报警- id:{self.id} 报警物体:{[{'name':do.class_name,'confidence':do.confidence ,'x':do.center_x,'y':do.center_y,} for do in all_detected]}")
+            kafka.MONITORING_ALARM_KAFKA.put(all_detected)
             all_detected=[]
 
         return frame
 
     def start_detect(self):
-        # 人的坐标列表
-        people_coordinates = []
         self.play_srv.read(frame_callback=self.process_frame)
 
 

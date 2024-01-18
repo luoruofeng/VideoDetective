@@ -36,7 +36,7 @@ class RTMPSrv:
         self.running = False
         self.capture = None
         self.pull_cache_queue = BlockingDeque(maxlen=cache_size)
-        self.exception_queue = queue.Queue()
+        self.exception_queue = queue.Queue(maxsize=0)
         self.p_thread = None
 
     #停止读取流，并关闭与RTMP流的连接。

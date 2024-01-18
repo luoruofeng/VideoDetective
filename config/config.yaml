@@ -1,7 +1,7 @@
 detectives:
   - id: 3
     rtmp:
-      pull_stream: https://cn-jsyz-ct-03-27.bilivideo.com/live-bvc/949839/live_3494368669338503_7711584_1500/index.m3u8
+      pull_stream: rtsp://admin:123456@192.168.43.72:554/stream1
       push_stream: rtmp://localhost/live/livestream123
       play_url: http://localhost:8080/live/livestream123.flv
     monitoring_topics:
@@ -35,10 +35,19 @@ yolo:
 
 pull_rtmp: 
   long_wait_retry_seconds: 10 #最长rtmp重试时间
-  short_wait_retry_seconds: 4 #最短rtmp重试时间
+  short_wait_retry_seconds: 114 #最短rtmp重试时间
   number_of_retry_short2long: 111 #最短到最长的切换次数
   daemon: False #拉流是否守护子线程
   cache_size: 10240 #拉流缓冲区frame存放数量 超过就丢弃
 
 server:
   check_config_second: 3 #检查配置间隔时间
+  kafka: 
+    topic: monitoring_alarm #Kafka 主题名称
+    partitions: 6 #总共分区数量 broker的倍数
+    replication_factor: 2 #副本数
+    server:
+      - bootstrap_server: kafka1:9092 #Kafka 服务器地址 (设置hosts：宿主机ip对应kafka的入口点 如：172.26.58.113 kafka1)
+      - bootstrap_server: kafka2:9093
+      - bootstrap_server: kafka3:9094
+      

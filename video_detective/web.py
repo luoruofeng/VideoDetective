@@ -1,3 +1,4 @@
+import queue
 import sys
 import os
 # 获取当前脚本文件所在目录的路径
@@ -5,7 +6,7 @@ current_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # 将当前脚本所在目录添加到sys.path中
 sys.path.append(current_path)
 
-
+from video_detective.kafka import KafkaProducer
 from flask import Flask, render_template
 import threading
 from video_detective import util
@@ -68,6 +69,17 @@ class Worker():
 
 RTMP_WORKER_DICT:dict[str, Worker] = {} #k:id v:worker
 RTMP_CACHE_SIZE = util.ConfigSingleton().pull_rtmp["cache_size"]
+
+MONITORING_ALARM_KAFKA_THREAD = None
+if "kafka" in util.ConfigSingleton().server:
+    kafka = util.ConfigSingleton().server["kafka"]
+    def init_kafka():
+        if kafka["server"] is not None and kafka["topic"] is not None:
+            global MONITORING_ALARM_KAFKA_THREAD
+            MONITORING_ALARM_KAFKA_THREAD = threading.Thread(target=KafkaProducer,args=(kafka["server"], kafka["topic"], kafka["partitions"], kafka["replication_factor"], SHUT_DOWN_EVENT))
+            MONITORING_ALARM_KAFKA_THREAD.start()
+            print(f"启动kafka ip:{kafka['server']} topic:{kafka['topic']}")
+
 
 def init_workers():
     for i in range(len(util.ConfigSingleton().detectives)):
@@ -178,6 +190,8 @@ def signal_handler(sig, frame):
             print(f"子线程-等待结束 id:{id} worker:{worker}")
             worker.thread.join()  # 等待线程结束
             print(f"子线程-结束  id:{id} worker:{worker}")
+        MONITORING_ALARM_KAFKA_THREAD.join()
+        print("kafka线程结束")
     print("good bye!")
     sys.exit(0)
 
@@ -186,6 +200,7 @@ def signal_handler(sig, frame):
 def video_detective_launch(): 
     args = _get_args() #获取启动参数
     ModelSrv() #初始化模块
+    init_kafka() #初始化kafka
     init_workers() #初始化rtmp workers
     print(f'拉流workers: {util.ConfigSingleton().detectives}')
     start_rtmp_workers(RTMP_WORKER_DICT)#开始rtmp拉流
