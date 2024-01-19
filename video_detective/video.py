@@ -1,7 +1,7 @@
 import cv2
 import time
 import threading
-import util
+from video_detective import util
 
 class VideoSrv:
     def __init__(self, file_path:str,callback_interval =1000):

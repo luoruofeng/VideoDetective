@@ -1,4 +1,5 @@
 from datetime import datetime
+import os
 import yaml
 from threading import Lock
 import cv2
@@ -20,7 +21,11 @@ class ConfigSingleton:
                 cls._instance._initialized = False
         return cls._instance
 
-    def __init__(self, config_path='../config/config.yaml'):
+    def __init__(self, config_path=None):
+        if config_path == None:
+            dir = os.path.dirname(os.path.abspath(__file__))
+            config_path = os.path.join(dir,'config/config.yaml') 
+
         if self._initialized:
             return
         self._initialized = True
@@ -68,7 +73,10 @@ class ConfigSingleton:
         return None
 
     
-    def reload(self, config_path='../config/config.yaml'):
+    def reload(self, config_path=None):
+        if config_path == None:
+            dir = os.path.dirname(os.path.abspath(__file__))
+            config_path = os.path.join(dir,'config/config.yaml') 
         with self._lock:
             # 清除当前配置
             self.config = None

@@ -1,3 +1,7 @@
+torch #-f https://download.pytorch.org/whl/cu121/torch-1.12.0%2Bcu121-cp38-cp38-linux_x86_64.whl
+torchvision #-f https://download.pytorch.org/whl/cu121/torchvision-0.13.0%2Bcu121-cp38-cp38-linux_x86_64.whl
+torchaudio #-f https://download.pytorch.org/whl/cu121/torchaudio-0.12.0%2Bcu121-cp38-cp38-linux_x86_64.whl
+
 # YOLOv5 requirements
 # Usage: pip install -r requirements.txt
 
@@ -48,15 +52,12 @@ setuptools>=65.5.1 # Snyk vulnerability fix
 # albumentations>=1.0.3
 # pycocotools>=2.0.6  # COCO mAP
 
-pillow==10.1.0
+Pillow==10.1.0
 matplotlib==3.8.2
 opencv-python==4.8.1.78
 yolov5==7.0.13
 Flask==3.0.0
-ffmpeg-python==0.4.9
+ffmpeg-python==0.2.0
 pyyaml==6.0.1
 confluent-kafka==2.3.0
-
-torch -f https://download.pytorch.org/whl/cu121/torch-1.12.0%2Bcu121-cp38-cp38-linux_x86_64.whl
-torchvision -f https://download.pytorch.org/whl/cu121/torchvision-0.13.0%2Bcu121-cp38-cp38-linux_x86_64.whl
-torchaudio -f https://download.pytorch.org/whl/cu121/torchaudio-0.12.0%2Bcu121-cp38-cp38-linux_x86_64.whl
+typing_extensions==4.4.0

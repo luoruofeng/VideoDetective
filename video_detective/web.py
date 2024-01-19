@@ -1,10 +1,9 @@
-import queue
 import sys
 import os
 # 获取当前脚本文件所在目录的路径
-current_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+pro_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # 将当前脚本所在目录添加到sys.path中
-sys.path.append(current_path)
+sys.path.append(pro_path)
 
 from video_detective.kafka import KafkaProducer
 from flask import Flask, render_template
@@ -19,7 +18,8 @@ from video_detective import detective
 from video_detective.model import ModelSrv
 import video_detective.model as m
 
-DEFAULT_CONFIG_PATH = '../config/config.yaml'
+dir = os.path.dirname(os.path.abspath(__file__))
+DEFAULT_CONFIG_PATH = os.path.join(dir,'config/config.yaml') 
 
 def _get_args():
     parser = ArgumentParser()

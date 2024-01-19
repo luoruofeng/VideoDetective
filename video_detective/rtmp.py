@@ -1,12 +1,9 @@
-import subprocess
-import traceback
 import ffmpeg
 import cv2
 import threading
-import util
+from video_detective import util
 from collections import deque
 import queue
-import os
 
 # 为阻塞deque的get函数
 class BlockingDeque:

@@ -1,10 +1,10 @@
 import time
 import cv2
 from video_detective import util
-import img
+from video_detective import img
+from video_detective import kafka
 import numpy as np
 import json
-from video_detective import kafka
 class Item():
     def __init__(self,class_id,coordinate, xmin, ymin, xmax, ymax,confidence, detective_id, model):
         self.class_id = class_id
