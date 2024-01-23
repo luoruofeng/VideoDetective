@@ -1,9 +1,11 @@
+import time
 import ffmpeg
 import cv2
 import threading
 from video_detective import util
 from collections import deque
 import queue
+import logging
 
 # 为阻塞deque的get函数
 class BlockingDeque:
@@ -13,7 +15,7 @@ class BlockingDeque:
 
     def put(self, item):
         with self.condition:
-            self.deque.append(item)
+            self.deque.append(item)#不阻塞 丢老的
             self.condition.notify()
 
     def get(self):
@@ -39,10 +41,10 @@ class RTMPSrv:
     #停止读取流，并关闭与RTMP流的连接。
     def stop(self):
         if self.capture is not None:
-            print(f"拉流OpenVC-即将结束 id:{self.id}")
+            logging.info(f"拉流OpenVC-即将结束 id:{self.id}")
             self.capture.release()
             self.capture = None
-        print(f"拉流OpenVC-结束 id:{self.id}")
+        logging.info(f"拉流OpenVC-结束 id:{self.id}")
         # cv2.destroyAllWindows()
 
 
@@ -60,7 +62,7 @@ class RTMPSrv:
             width = int(self.capture.get(cv2.CAP_PROP_FRAME_WIDTH))
             height = int(self.capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
             fps = int(self.capture.get(cv2.CAP_PROP_FPS))
-            print(f"拉流OpenVC-处理推流线程-参数 id:{self.id} width:{width} height:{height} fps:{fps}")
+            logging.info(f"拉流OpenVC-处理推流线程-参数 id:{self.id} width:{width} height:{height} fps:{fps}")
 
             # 设置ffmpeg转码和推流的参数
             process = (
@@ -76,7 +78,7 @@ class RTMPSrv:
                 try:
                     frame = frame_callback(ret, frame)
                 except Exception as e:
-                    print(f"拉流OpenVC-处理推流线程-模型处理报错 id:{self.id} exception:{e}")
+                    logging.info(f"拉流OpenVC-处理推流线程-模型处理报错 id:{self.id} exception:{e}")
                      # 捕获异常并打印堆栈跟踪信息
                     # traceback.print_exc()
                 if frame_callback is not None:
@@ -92,7 +94,7 @@ class RTMPSrv:
         finally:
             if process is not None:
                 self.stop_p_thread(process)
-                print(f"拉流OpenVC-处理推流线程-结束 id:{self.id}")
+                logging.info(f"拉流OpenVC-处理推流线程-结束 id:{self.id}")
 
     def stop_thread(self):
         self.running = False
@@ -117,14 +119,14 @@ class RTMPSrv:
                 raise ValueError(f"拉流OpenVC-处理推流线程退出 id:{self.id} url:{self.rtmp_url}")
 
             # 拉流
-            print(f"拉流OpenVC-开始 id:{self.id}")
+            logging.info(f"拉流OpenVC-开始 id:{self.id}")
             while not self.stop_event.is_set() and self.running:
                 ret, frame = self.capture.read()
                 self.pull_cache_queue.put((ret, frame))
                 if not ret:
                     break                
         except Exception as e:
-            print(f"拉流OpenVC-错误 id:{self.id} Exception occurred: {e}")
+            logging.info(f"拉流OpenVC-错误 id:{self.id} Exception occurred: {e}")
             return
         finally:
             self.stop()

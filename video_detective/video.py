@@ -2,6 +2,7 @@ import cv2
 import time
 import threading
 from video_detective import util
+import logging
 
 class VideoSrv:
     def __init__(self, file_path:str,callback_interval =1000):
@@ -33,7 +34,7 @@ class VideoSrv:
                 if frame_callback is not None:
                     current_time = time.time()
                     if current_time - self.last_callback_time >= self.callback_interval / 1000:
-                        print(util.format_time(current_time))
+                        logging.info(util.format_time(current_time))
                         frame_callback(ret, frame)
                         self.last_callback_time = current_time
                 if cv2.waitKey(util.ConfigSingleton().yolo['refresh_time_ms']) & 0xFF == ord('q'):
@@ -43,7 +44,7 @@ class VideoSrv:
             self.stop_flag = False  # 重置标志位
 
         except Exception as e:
-            print(f"An error occurred: {e}")
+            logging.info(f"An error occurred: {e}")
 
     
     #获取视频的宽高
@@ -60,19 +61,19 @@ class VideoSrv:
             return width, height
 
         except Exception as e:
-            print(f"An error occurred while getting video dimensions: {e}")
+            logging.info(f"An error occurred while getting video dimensions: {e}")
             return None, None
 
 
 if __name__ == "__main__":
     # 示例回调函数，这里仅仅打印帧的形状
     def process_frame(ret,frame):
-        print(f"Frame shape: {frame.shape}")
+        logging.info(f"Frame shape: {frame.shape}")
 
     # 使用示例
     file_path = '../source/small_road.mp4'  # 请替换成你的实际文件路径
     video_service = VideoSrv(file_path,1000)
-    print(video_service.get_video_dimensions())
+    logging.info(video_service.get_video_dimensions())
     threading.Thread(target=video_service.read,args=(2500,process_frame)).start()
     # video_service.read( frame_callback=process_frame)
     time.sleep(6)

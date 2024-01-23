@@ -43,7 +43,7 @@ class DetectiveSrv():
     # 在原始帧上绘制边框和中心点
     def draw_frame(self,frame, xmin, ymin, xmax, ymax, center_x, center_y, class_name):
         cv2.putText(frame, class_name, (xmin, ymin - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)  # 显示类别名称
-        cv2.rectangle(frame, (xmin, ymin), (xmax, ymax), (0, 255, 0), 2)
+        cv2.rectangle(frame, (xmin, ymin), (xmax, ymax), ( 0, 255, 0), 2) 
         cv2.circle(frame, (center_x, center_y), 5, (255, 0, 0), -1)  # 绘制中心点
         cv2.putText(frame, f'({center_x}, {center_y})', (center_x, center_y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)  # 标注中心点坐标
         # 在视频帧上绘制多边形区域
@@ -51,7 +51,14 @@ class DetectiveSrv():
             # 定义多边形的顶点
             vertices = np.array(self.polygon, np.int32)
             vertices = vertices.reshape((-1, 1, 2))
-            cv2.polylines(frame, [vertices], isClosed=True, color=(0, 255, 0), thickness=2)
+            cv2.polylines(frame, [vertices], isClosed=True, color=( 0, 0, 255), thickness=2)
+            # 创建一个与图像相同大小的全零图像，用于绘制半透明红色多边形
+            overlay = frame.copy()  
+            # 填充多边形区域
+            cv2.fillPoly(overlay, [vertices], color=(0, 0, 255))  # 这是半透明红色
+            # 将两个图像混合，实现半透明效果
+            alpha = 0.2  # 透明度，可以调整这个值
+            cv2.addWeighted(overlay, alpha, frame, 1 - alpha, 0, frame)
             
     # 示例回调函数
     def process_frame(self,ret,frame):
@@ -96,7 +103,7 @@ class DetectiveSrv():
         # 画框
         if util.ConfigSingleton().yolo["show_detected_line"]:
             for do in all_detected:
-                self.draw_frame(frame, do.xmin, do.ymin, do.xmax, do.ymax, do.center_x, do.center_y, model.names.get(do.class_id,""))
+                self.draw_frame(frame, do.xmin, do.ymin, do.xmax, do.ymax, do.center_x, do.center_y, do.class_name)
 
         # 报警
         if len(all_detected) > 0:

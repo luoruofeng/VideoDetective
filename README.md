@@ -7,6 +7,10 @@ MP4和流的视频监控
 pip install -r requirements.txt
 python .\video_detective\web.py
 ```
+指定config文件路径和端口
+```shell
+python .\video_detective\web.py -c .\c.yaml -p 8333
+```
 
 ## 安装vd-web
 根据CUDA版本安装Torch依赖,参考[Pytorch安装](https://pytorch.org/get-started/locally/)

@@ -5,6 +5,7 @@ from video_detective import util
 from video_detective.detective import Item
 import queue
 import threading
+import logging
 
 MONITORING_ALARM_KAFKA: queue.Queue[list[Item]] = None
 
@@ -16,7 +17,7 @@ class KafkaProducer:
         for bs in bootstrap_servers:
             bootstrap_servers_str += (bs["bootstrap_server"]+",")
         bootstrap_servers_str = bootstrap_servers_str[:-1]
-        print(f"bootstrap_servers_str:{bootstrap_servers_str}")
+        logging.info(f"bootstrap_servers_str:{bootstrap_servers_str}")
         self.producer = Producer({'bootstrap.servers': bootstrap_servers_str})
         self.bootstrap_servers = bootstrap_servers_str
         self.topic = topic
@@ -43,7 +44,7 @@ class KafkaProducer:
         # Get metadata about all topics
         metadata = admin_client.list_topics(timeout=10)
         # Check if topic_name is in the metadata
-        print(f"kafka已经存在的topics:{metadata.topics}")
+        logging.info(f"kafka已经存在的topics:{metadata.topics}")
         return self.topic in metadata.topics
 
     def create_topic(self):
@@ -65,21 +66,21 @@ class KafkaProducer:
         for topic, f in fs.items():
             try:
                 f.result()  # The result itself is None
-                print("kafka主题： {} 创建".format(topic))
+                logging.info("kafka主题： {} 创建".format(topic))
             except KafkaException as e:
                 error = e.args[0]
                 if error.code() == KafkaError.TOPIC_ALREADY_EXISTS:
-                    print("kafka主题： {} 已经存在".format(topic))
+                    logging.info("kafka主题： {} 已经存在".format(topic))
                 else:
-                    print("kafka创建主题失败 {}: {}".format(topic, e))
+                    logging.info("kafka创建主题失败 {}: {}".format(topic, e))
 
     def produce_messages(self, items):
-        print(f"报警- id:{items[0].detective_id} 报警物体:{[{'name':item.class_name,'confidence':item.confidence ,'x':item.center_x,'y':item.center_y,} for item in items]}")
+        logging.info(f"报警- id:{items[0].detective_id} 报警物体:{[{'name':item.class_name,'confidence':item.confidence ,'x':item.center_x,'y':item.center_y,} for item in items]}")
         def acked(err, msg):
             if err is not None:
-                print("分发消息到kafka失败: {}".format(err.str()))
+                logging.info("分发消息到kafka失败: {}".format(err.str()))
             else:
-                print(f"分发消息到kafka成功: {msg}")
+                logging.info(f"分发消息到kafka成功: {msg}")
         for item in items:
             message = json.dumps(vars(item))
             self.producer.produce(self.topic,key=str(item.time), value=message, callback = acked)

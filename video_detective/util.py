@@ -4,35 +4,39 @@ import yaml
 from threading import Lock
 import cv2
 import threading
+import logging
+
+CONFIG_PATH = None
 
 # Usage
 # ConfigSingleton().detectives
 # ConfigSingleton().yolo
 # ConfigSingleton().pull_rtmp
 # ConfigSingleton().server
+
 class ConfigSingleton:
     _instance = None
     _lock = Lock()
 
     def __new__(cls, *args, **kwargs):
         with cls._lock:
+            if len(args) > 0 or "config_path" in kwargs: #传入了config路径需要重新加载config
+                cls._instance = None
             if cls._instance is None:
                 cls._instance = super(ConfigSingleton, cls).__new__(cls)
                 cls._instance._initialized = False
         return cls._instance
 
     def __init__(self, config_path=None):
-        if config_path == None:
-            dir = os.path.dirname(os.path.abspath(__file__))
-            config_path = os.path.join(dir,'config/config.yaml') 
-
         if self._initialized:
             return
+        if config_path is None:
+            raise ValueError("config_path cannot be None")
         self._initialized = True
         self.config_path = config_path
         with open(config_path, 'r', encoding="utf8") as file:
             self.config = yaml.safe_load(file)
-        
+
     def get_detectives_changed(self, other):
         changed = []
         ods  = other["detectives"]
@@ -66,7 +70,7 @@ class ConfigSingleton:
     def get_index_by_id(self,id:str)->int:
         index = 0
         for det in self.detectives:
-            print(det)
+            logging.info(det)
             if det["id"] == id:
                 return index
             index += 1
@@ -131,13 +135,13 @@ def print_all_threads():
     
     # 打印每个线程的信息
     for thread in current_threads:
-        print(f"Thread ID: {thread.ident}, Name: {thread.name}, Alive: {thread.is_alive()}")
+        logging.info(f"Thread ID: {thread.ident}, Name: {thread.name}, Alive: {thread.is_alive()}")
 
 # 示例使用
 if __name__ == "__main__":
     xmin, ymin, xmax, ymax = 100, 150, 200, 250  # 举例目标框的坐标
     center_x, center_y = calculate_center(xmin, ymin, xmax, ymax)
-    print(f"目标框的中心点坐标为 ({center_x}, {center_y})")
+    logging.info(f"目标框的中心点坐标为 ({center_x}, {center_y})")
 
 def get_fps(video_path):
     # 打开视频文件
@@ -152,8 +156,8 @@ def get_fps(video_path):
 
 # 使用例子
 # safe_dict = SafeDict({'a': 1, 'b': 2})
-# print(safe_dict['a'])  # 输出: 1
-# print(safe_dict['c'])  # 输出: None
+# logging.info(safe_dict['a'])  # 输出: 1
+# logging.info(safe_dict['c'])  # 输出: None
 class SafeDict(dict):
     def __getitem__(self, key):
         return self.get(key, None)

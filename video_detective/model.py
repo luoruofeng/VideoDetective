@@ -2,6 +2,7 @@ from video_detective import util
 import torch
 import yolov5
 import os
+import logging
 
 MODELS = []#已经加载了的所有YOLOv5模型
 
@@ -27,8 +28,8 @@ class ModelSrv():
             m_loaded = None
             if m.repo_or_dir is None:
                 m_loaded = torch.hub.load(os.path.dirname(yolov5.__file__), 'custom', os.path.join(pt_path, m.model_name), source='local')
-                print(f"加載-本地 路径：{torch.hub.get_dir()} 模型:{m.model_name} 模型类别:{m_loaded.names}")
+                logging.info(f"加載-本地 路径：{torch.hub.get_dir()} 模型:{m.model_name} 模型类别:{m_loaded.names}")
             else:
                 m_loaded = torch.hub.load(m.repo_or_dir, m.model_name)
-                print(f"加載-pytorch hub 路径：{torch.hub.get_dir()} 模型:{m.repo_or_dir} {m.model_name} 模型类别:{m_loaded.names}")
+                logging.info(f"加載-pytorch hub 路径：{torch.hub.get_dir()} 模型:{m.repo_or_dir} {m.model_name} 模型类别:{m_loaded.names}")
             MODELS.append(m_loaded)    

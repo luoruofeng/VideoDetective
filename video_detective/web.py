@@ -17,24 +17,26 @@ from video_detective.detective import DetectiveSrv
 from video_detective import detective
 from video_detective.model import ModelSrv
 import video_detective.model as m
+import logging
 
 dir = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_CONFIG_PATH = os.path.join(dir,'config/config.yaml') 
+util.ConfigSingleton(config_path=DEFAULT_CONFIG_PATH)
 
 def _get_args():
     parser = ArgumentParser()
     parser.add_argument("-c", "--config-path", type=str, default=DEFAULT_CONFIG_PATH,
                         help="config yaml file path, default to %(default)r")
-    parser.add_argument("--server-port", type=int, default=8000,
+    parser.add_argument("-p", "--server-port", type=int, default=8000,
                         help="Demo server port.")
-    parser.add_argument("--server-name", type=str, default="127.0.0.1",
+    parser.add_argument("-n","--server-name", type=str, default="127.0.0.1",
                         help="Demo server name.")
     parser.add_argument("--debug", type=bool, default=False, help="server is debug model")
 
     args = parser.parse_args()
     return args
 
-app = Flask(__name__, static_folder='../static/', template_folder='../templates/')
+app = Flask(__name__, static_folder='./static/', template_folder='./templates/')
 
 SHUT_DOWN_EVENT = threading.Event()
 SHUTDOWN_SIGNAL_RECEIVED = False # 设置一个标志，初始时为 False
@@ -78,7 +80,7 @@ if "kafka" in util.ConfigSingleton().server:
             global MONITORING_ALARM_KAFKA_THREAD
             MONITORING_ALARM_KAFKA_THREAD = threading.Thread(target=KafkaProducer,args=(kafka["server"], kafka["topic"], kafka["partitions"], kafka["replication_factor"], SHUT_DOWN_EVENT))
             MONITORING_ALARM_KAFKA_THREAD.start()
-            print(f"启动kafka ip:{kafka['server']} topic:{kafka['topic']}")
+            logging.info(f"启动kafka ip:{kafka['server']} topic:{kafka['topic']}")
 
 
 def init_workers():
@@ -100,13 +102,13 @@ def rtmp_worker(id, worker:Worker):
             except Exception as e:
                 retries += 1
                 if retries < number_of_retry_short2long:
-                    print(f"{short_wait_retry_seconds}秒后重试拉流 (Attempt {retries} of {number_of_retry_short2long} ) id:{id} exception:{e}")
+                    logging.info(f"{short_wait_retry_seconds}秒后重试拉流 (Attempt {retries} of {number_of_retry_short2long} ) id:{id} exception:{e}")
                     SHUT_DOWN_EVENT.wait(timeout=short_wait_retry_seconds)
                 else:
-                    print(f"{long_wait_retry_seconds}秒后重试拉流 (Attempt {retries} of {number_of_retry_short2long} ) id:{id} exception:{e}")
+                    logging.info(f"{long_wait_retry_seconds}秒后重试拉流 (Attempt {retries} of {number_of_retry_short2long} ) id:{id} exception:{e}")
                     SHUT_DOWN_EVENT.wait(timeout=long_wait_retry_seconds)
     finally:
-        print(f'拉流worker被移除 id:{id} stream_url:{worker.pull_stream} ')
+        logging.info(f'拉流worker被移除 id:{id} stream_url:{worker.pull_stream} ')
 
 
 def start_rtmp_workers(workers:dict[str,Worker]):
@@ -115,12 +117,12 @@ def start_rtmp_workers(workers:dict[str,Worker]):
         if worker.thread is not None and worker.thread.is_alive():
             worker.stop() #先停止原有worker的工作-停止原有线程
             worker.thread.join() #等待原有线程结束再开启新线程
-            print(f"原有线程结束。 id:{id}")
+            logging.info(f"原有线程结束。 id:{id}")
             if worker.pull_stream is None:#pull_stream是None表示需要刪除
                 del(RTMP_WORKER_DICT[worker.id])
                 continue
             
-        print(f"拉流worker準備開始 id:{id}")
+        logging.info(f"拉流worker準備開始 id:{id}")
         worker.set_srv() #賦新srv
         t = threading.Thread(target=rtmp_worker, args=(id, worker,))
         t.daemon = util.ConfigSingleton().pull_rtmp['daemon']
@@ -143,7 +145,7 @@ def stream(stream_id):
 
 CONFIG_SINGLETON =None
 def init_check_config_thread():
-    print("初始化检查配置文件线程")
+    logging.info("初始化检查配置文件线程")
     config_thread = threading.Thread(target=check_config_changes)
     config_thread.daemon = True
     config_thread.start()
@@ -166,7 +168,7 @@ def check_config_changes():
                 worker = RTMP_WORKER_DICT[cd["id"]]
                 worker.set_props(cd["rtmp"]["pull_stream"],cd["rtmp"]["push_stream"],cd["rtmp"]["play_url"],cd["monitoring_topics"],cd["polygon_coordinates"])
                 changed_workers[cd["id"]] = worker
-            print(f"修改原有workers:{[(w.id,w.pull_stream) for w in changed_workers.values()]}")
+            logging.info(f"修改原有workers为新的workers:{[(w.id,w.pull_stream) for w in changed_workers.values()]}")
             start_rtmp_workers(changed_workers) #會阻塞
         SHUT_DOWN_EVENT.wait(util.ConfigSingleton().server["check_config_second"])
 
@@ -179,7 +181,7 @@ def signal_handler(sig, frame):
         return
     # 设置标志，表示信号已经接收
     SHUTDOWN_SIGNAL_RECEIVED = True
-    print(f"用户结束程序-子线程数:{len(RTMP_WORKER_DICT)} 当前子线程:{RTMP_WORKER_DICT} ")
+    logging.info(f"用户结束程序-子线程数:{len(RTMP_WORKER_DICT)} 当前子线程:{RTMP_WORKER_DICT.keys} ")
     global MODEL
     MODEL = None
     # util.print_all_threads()
@@ -187,22 +189,41 @@ def signal_handler(sig, frame):
     # 停止RTMP工作线程
     if not util.ConfigSingleton().pull_rtmp['daemon']:
         for id,worker in RTMP_WORKER_DICT.items():
-            print(f"子线程-等待结束 id:{id} worker:{worker}")
+            logging.info(f"子线程-等待结束 id:{id}")
             worker.thread.join()  # 等待线程结束
-            print(f"子线程-结束  id:{id} worker:{worker}")
+            logging.info(f"子线程-结束  id:{id}")
         MONITORING_ALARM_KAFKA_THREAD.join()
-        print("kafka线程结束")
-    print("good bye!")
+        logging.info("kafka线程结束")
+    logging.info("good bye!")
     sys.exit(0)
 
-#TODO 添加对config的监控 修改后可以修改拉流文件
+def init_log(log_path, log_level):
+    l = logging.INFO
+    if log_level == "info":
+        l = logging.INFO
+    elif log_level == "debug":
+        l = logging.INFO
+    elif log_level == "warn":
+        l = logging.WARN
+    elif log_level == "error":
+        l = logging.ERROR
+        
+    logging.basicConfig(
+        filename=log_path,  # 指定日志文件路径
+        level=l,  # 指定日志级别，例如DEBUG，INFO，WARNING，ERROR，CRITICAL
+        format='%(asctime)s - %(levelname)s - %(message)s'
+    )
 
 def video_detective_launch(): 
     args = _get_args() #获取启动参数
+    util.CONFIG_PATH = args.config_path
+    config_instance = util.ConfigSingleton(args.config_path)#初始化config
+    
+    init_log(util.ConfigSingleton().server["log_path"], util.ConfigSingleton().server["log_level"])
     ModelSrv() #初始化模块
     init_kafka() #初始化kafka
     init_workers() #初始化rtmp workers
-    print(f'拉流workers: {util.ConfigSingleton().detectives}')
+    logging.info(f'拉流workers: {util.ConfigSingleton().detectives}')
     start_rtmp_workers(RTMP_WORKER_DICT)#开始rtmp拉流
     signal.signal(signal.SIGINT, signal_handler)  # 注册Ctrl+C信号处理程序
     init_check_config_thread()#初始化配置文件修改检查

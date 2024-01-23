@@ -3,6 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.path import Path
 import cv2
+import logging
 
 red_color = (255, 0, 0)# 红色
 point_radius = 15# 设置点的半径，从而决定点的大小
@@ -55,7 +56,7 @@ if __name__ == "__main__":
     ips = ImgPolygonSrv("../source/lv.png",None,polygon)
     ips.new_board()
     test_point = (2250, 1159)
-    print("Point", test_point, "is in polygon:", ips.is_point_in_poly(test_point))
+    logging.info("Point", test_point, "is in polygon:", ips.is_point_in_poly(test_point))
     
     ips.draw_line(polygon)
     ips.draw_big_point(test_point)
