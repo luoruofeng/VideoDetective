@@ -4,12 +4,17 @@ import os
 
 # 获取项目目录
 project_dir = os.path.abspath('.')
-
 with open('requirements.txt') as f:
     requirements = f.read().splitlines()
 
+p_dir = "video_detective/"
+# # windows下的路径设置
+INSTALL_PATH = "Lib/site-packages/"+p_dir
+    
+# Linux conda下的路径设置
+# INSTALL_PATH = "lib/python3.11/site-packages/"+ p_dir
 
-INSTALL_PATH = "Lib/site-packages/video_detective/"
+
 def get_install_path(r_path):
     return os.path.join(INSTALL_PATH, r_path)
 
@@ -32,7 +37,7 @@ setup(
     python_requires='>=3.10',
     install_requires=requirements,
     package_dir={'': project_dir},
-    data_files=[(get_install_path("config"), #打包后将配置文件复制到指定的路径。路径需要是打包后的Lib/site-packages/{name}为存放配置文件的父路径
+    data_files=[(get_install_path("config"), 
                  [
                      "./video_detective/config/config.yaml",
                 ]

@@ -57,7 +57,10 @@ class RTMPSrv:
     def processAndPush(self, frame_callback = None):
         process = None
         try:
-            stream_url = util.ConfigSingleton().detectives[util.ConfigSingleton().get_index_by_id(self.id)]["rtmp"]["push_stream"]
+            index = util.ConfigSingleton().get_index_by_id(self.id)
+            if index is None:
+                raise Exception(f"配置中detectives没有id:{self.id}")
+            stream_url = util.ConfigSingleton().detectives[index]["rtmp"]["push_stream"]
             # 获取视频源的属性
             width = int(self.capture.get(cv2.CAP_PROP_FRAME_WIDTH))
             height = int(self.capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
@@ -87,8 +90,6 @@ class RTMPSrv:
                     if process.poll() is None:
                         if frame is not None:
                             process.stdin.write(frame.tobytes())
-                    if cv2.waitKey(util.ConfigSingleton().yolo['refresh_time_ms']) & 0xFF == ord('q'):
-                        break
                 else:
                     raise ValueError(f"拉流OpenVC-处理推流线程-没有设置回调函数 id:{self.id} rtmp_url:{self.rtmp_url}")    
         finally:
@@ -106,10 +107,6 @@ class RTMPSrv:
         if not self.capture.isOpened():
             raise ValueError(f"拉流OpenVC-无法打开流 id:{self.id} url:{self.rtmp_url}")
         try:
-            self.capture = cv2.VideoCapture(self.rtmp_url)
-            if not self.capture.isOpened():
-                raise ValueError(f"拉流OpenVC-无法打开流 id:{self.id} url:{self.rtmp_url}")
-
             # 准备处理并且推流
             if self.p_thread is None:
                 p_thread = threading.Thread(target=self.processAndPush,args=(frame_callback,))

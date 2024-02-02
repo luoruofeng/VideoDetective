@@ -77,10 +77,12 @@ class ConfigSingleton:
         return None
 
     
-    def reload(self, config_path=None):
-        if config_path == None:
+    def reload(self):
+        if CONFIG_PATH == None:
             dir = os.path.dirname(os.path.abspath(__file__))
             config_path = os.path.join(dir,'config/config.yaml') 
+        else:
+            config_path = CONFIG_PATH
         with self._lock:
             # 清除当前配置
             self.config = None

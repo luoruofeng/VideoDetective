@@ -217,8 +217,7 @@ def init_log(log_path, log_level):
 def video_detective_launch(): 
     args = _get_args() #获取启动参数
     util.CONFIG_PATH = args.config_path
-    config_instance = util.ConfigSingleton(args.config_path)#初始化config
-    
+    util.ConfigSingleton(args.config_path)#初始化config
     init_log(util.ConfigSingleton().server["log_path"], util.ConfigSingleton().server["log_level"])
     ModelSrv() #初始化模块
     init_kafka() #初始化kafka

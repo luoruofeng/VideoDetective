@@ -1,9 +1,14 @@
 # VideoDetective
-MP4和流的视频监控
-
+监控流媒体物体：人 火 烟。
+   
+依赖：
+1. ffmpeg
+2. CUDA
 
 ## 运行
 ```
+sudo apt-get install ffmpeg
+
 pip install -r requirements.txt
 python .\video_detective\web.py
 ```
@@ -25,5 +30,12 @@ python安装vc命令
 pip install .
 ```
 
+## 编译wheel
+编译前：根据运行的操作系统来注释setup.py中的INSTALL_PATH属性。
+```
+pip install setuptools wheel
+
+python setup.py bdist_wheel
+```
 
 
