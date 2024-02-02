@@ -73,9 +73,9 @@ RTMP_WORKER_DICT:dict[str, Worker] = {} #k:id v:worker
 RTMP_CACHE_SIZE = util.ConfigSingleton().pull_rtmp["cache_size"]
 
 MONITORING_ALARM_KAFKA_THREAD = None
-if "kafka" in util.ConfigSingleton().server:
-    kafka = util.ConfigSingleton().server["kafka"]
-    def init_kafka():
+def init_kafka():
+    if "kafka" in util.ConfigSingleton().server:
+        kafka = util.ConfigSingleton().server["kafka"]
         if kafka["server"] is not None and kafka["topic"] is not None:
             global MONITORING_ALARM_KAFKA_THREAD
             MONITORING_ALARM_KAFKA_THREAD = threading.Thread(target=KafkaProducer,args=(kafka["server"], kafka["topic"], kafka["partitions"], kafka["replication_factor"], SHUT_DOWN_EVENT))
