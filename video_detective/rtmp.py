@@ -43,7 +43,6 @@ class RTMPSrv:
         if self.capture is not None:
             logging.info(f"拉流OpenVC-即将结束 id:{self.id}")
             self.capture.release()
-            self.capture = None
         logging.info(f"拉流OpenVC-结束 id:{self.id}")
         # cv2.destroyAllWindows()
 
@@ -99,7 +98,6 @@ class RTMPSrv:
 
     def stop_thread(self):
         self.running = False
-        self.stop()
     
     def read(self, frame_callback=None)->list:
         # 准备拉流
