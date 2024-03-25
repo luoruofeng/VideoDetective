@@ -5,6 +5,8 @@ from video_detective import img
 from video_detective import kafka
 import numpy as np
 import json
+import logging
+
 class Item():
     def __init__(self,class_id,coordinate, xmin, ymin, xmax, ymax,confidence, detective_id, model):
         self.class_id = class_id
@@ -41,8 +43,8 @@ class DetectiveSrv():
         self.monitoring_topics = util.ConfigSingleton().detectives[util.ConfigSingleton().get_index_by_id(self.id)]["monitoring_topics"]
 
     # 在原始帧上绘制边框和中心点
-    def draw_frame(self,frame, xmin, ymin, xmax, ymax, center_x, center_y, class_name):
-        cv2.putText(frame, class_name, (xmin, ymin - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)  # 显示类别名称
+    def draw_frame(self,frame, xmin, ymin, xmax, ymax, center_x, center_y, class_name, confidence):
+        cv2.putText(frame, class_name+" "+str(confidence), (xmin, ymin - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)  # 显示类别名称
         cv2.rectangle(frame, (xmin, ymin), (xmax, ymax), ( 0, 255, 0), 2) 
         cv2.circle(frame, (center_x, center_y), 5, (255, 0, 0), -1)  # 绘制中心点
         cv2.putText(frame, f'({center_x}, {center_y})', (center_x, center_y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)  # 标注中心点坐标
@@ -103,11 +105,11 @@ class DetectiveSrv():
         # 画框
         if util.ConfigSingleton().yolo["show_detected_line"]:
             for do in all_detected:
-                self.draw_frame(frame, do.xmin, do.ymin, do.xmax, do.ymax, do.center_x, do.center_y, do.class_name)
+                self.draw_frame(frame, do.xmin, do.ymin, do.xmax, do.ymax, do.center_x, do.center_y, do.class_name, do.confidence)
 
         # 报警
         if len(all_detected) > 0:
-            kafka.MONITORING_ALARM_KAFKA.put(all_detected)
+            kafka.MONITORING_ALARM_KAFKA.put(all_detected)        
             all_detected=[]
 
         return frame

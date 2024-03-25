@@ -143,6 +143,14 @@ def stream(stream_id):
     # 将stream_url传递给前端页面进行播放
     return render_template('stream.html', stream_url=stream_url)
 
+@app.route('/stream/raw/<int:stream_id>')
+def raw_stream(stream_id):
+    index = util.ConfigSingleton().get_index_by_id(stream_id)
+    # 根据stream_id获取对应的RTMP流地址
+    stream_url = util.ConfigSingleton().detectives[index]['rtmp']['raw_play_url']
+    # 将stream_url传递给前端页面进行播放
+    return render_template('stream.html', stream_url=stream_url)
+
 CONFIG_SINGLETON =None
 def init_check_config_thread():
     logging.info("初始化检查配置文件线程")

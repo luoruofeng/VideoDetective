@@ -77,6 +77,7 @@ class KafkaProducer:
     def produce_messages(self, items):
         logging.info(f"报警- id:{items[0].detective_id} 报警物体:{[{'name':item.class_name,'confidence':item.confidence ,'x':item.center_x,'y':item.center_y,} for item in items]}")
         def acked(err, msg):
+            logging.info("kafka: {msg}")
             if err is not None:
                 logging.info("分发消息到kafka失败: {}".format(err.str()))
             else:
@@ -84,4 +85,4 @@ class KafkaProducer:
         for item in items:
             message = json.dumps(vars(item))
             self.producer.produce(self.topic,key=str(item.time), value=message, callback = acked)
-        
+            self.producer.flush()

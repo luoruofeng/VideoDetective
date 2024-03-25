@@ -10,8 +10,8 @@ with open('requirements.txt') as f:
 p_dir = "video_detective/"
 # # windows下的路径设置
 # INSTALL_PATH = "Lib/site-packages/"+p_dir
-    
-# Linux conda下的路径设置
+
+# # Linux conda下的路径设置
 INSTALL_PATH = "lib/python3.11/site-packages/"+ p_dir
 
 

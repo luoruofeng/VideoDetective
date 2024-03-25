@@ -6,6 +6,7 @@ from video_detective import util
 from collections import deque
 import queue
 import logging
+import copy
 
 # 为阻塞deque的get函数
 class BlockingDeque:
@@ -34,8 +35,8 @@ class RTMPSrv:
         self.stop_event = stop_event
         self.running = False
         self.capture = None
-        self.pull_cache_queue = BlockingDeque(maxlen=cache_size)
-        self.exception_queue = queue.Queue(maxsize=0)
+        self.openvc_cache_queue = BlockingDeque(maxlen=cache_size)
+        self.raw_stream_queue = queue.Queue(maxsize=0)
         self.p_thread = None
 
     #停止读取流，并关闭与RTMP流的连接。
@@ -74,10 +75,12 @@ class RTMPSrv:
                 .overwrite_output()
                 .run_async(pipe_stdin=True)
             )
-            
+            i=0
             while not self.stop_event.is_set() and self.running:
-                ret, frame = self.pull_cache_queue.get()
+                ret, frame = self.openvc_cache_queue.get()
                 try:
+                    i+=1
+                    print(str(frame.shape)+"--"+str(i)+"---"+str(self.id))
                     frame = frame_callback(ret, frame)
                 except Exception as e:
                     logging.info(f"拉流OpenVC-处理推流线程-模型处理报错 id:{self.id} exception:{e}")
@@ -113,11 +116,39 @@ class RTMPSrv:
             elif self.p_thread.is_alive() == False:
                 raise ValueError(f"拉流OpenVC-处理推流线程退出 id:{self.id} url:{self.rtmp_url}")
 
+
+            
+            width = int(self.capture.get(cv2.CAP_PROP_FRAME_WIDTH))
+            height = int(self.capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            fps = int(self.capture.get(cv2.CAP_PROP_FPS))
+            index = util.ConfigSingleton().get_index_by_id(self.id)
+            if index is None:
+                raise Exception(f"配置中detectives没有id:{self.id}")
+            raw_stream_url = util.ConfigSingleton().detectives[index]["rtmp"]["push_raw_stream"]
+            # 设置raw视频流的的ffmpeg转码和推流的参数
+            process_raw = (
+                ffmpeg
+                .input('pipe:0', format='rawvideo', pix_fmt='bgr24', s='{}x{}'.format(width, height), r=fps)
+                .output(raw_stream_url, format='flv', vcodec='libx264', pix_fmt='yuv420p', preset='ultrafast')
+                .overwrite_output()
+                .run_async(pipe_stdin=True)
+            )
+
             # 拉流
             logging.info(f"拉流OpenVC-开始 id:{self.id}")
+            i = 0
             while not self.stop_event.is_set() and self.running:
+                i+=1
                 ret, frame = self.capture.read()
-                self.pull_cache_queue.put((ret, frame))
+                if process_raw.poll() is None:
+                    if frame is not None:
+                        another = copy.deepcopy(frame)
+                        process_raw.stdin.write(another.tobytes())
+                        print(str(frame.shape)+"="+str(i)+"="+str(self.id))
+                    
+
+
+                self.openvc_cache_queue.put((ret, frame))
                 if not ret:
                     break                
         except Exception as e:

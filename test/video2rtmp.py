@@ -28,7 +28,7 @@ command = [
     '-pix_fmt', 'yuv420p',
     '-preset', 'ultrafast',
     '-f', 'flv',
-    'rtmp://localhost/live/livestream2'
+    'rtmp://localhost/live/livestream/mydevice'
 ]
 
 # 创建一个子进程给ffmpeg
